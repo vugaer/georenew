@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GeoRenew</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      height: 100vh;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 350px;
+      background: #ffffff;
+      padding: 20px;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+
+    .sidebar h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .sidebar h2 img {
+      height: 40px;
+      user-select: none;
+    }
+
+    #projectHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+
+    #refreshProjects {
+      cursor: pointer;
+      font-size: 1.3em;
+      user-select: none;
+    }
+
+    .map-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f0f0f0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .map-wrapper {
+      width: 90vmin;
+      height: 90vmin;
+      max-width: 90%;
+      max-height: 90%;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      border: 2px solid #ccc;
+    }
+
+    .coord-inputs {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .coord-inputs input, .coord-inputs button {
+      margin: 5px 5px 0 5px;
+      padding: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    input, button {
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    input[type="text"], input[type="number"] {
+      padding: 8px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 10px;
+      margin-top: 10px;
+      cursor: pointer;
+      background: #007bff;
+      border: none;
+      color: white;
+      border-radius: 3px;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+
+    .preview {
+      margin-top: 20px;
+    }
+
+    .preview img {
+      width: 100%;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      max-height: 220px;
+      object-fit: contain;
+      display: block;
+    }
+
+    #projectList div {
+      display: flex;
+      align-items: center;
+      margin: 5px 0;
+      gap: 8px;
+    }
+
+    #projectList a {
+      flex-grow: 1;
+      text-decoration: none;
+      color: #007bff;
+      cursor: pointer;
+      word-break: break-word;
+    }
+
+    #projectList button {
+      padding: 4px 8px;
+      font-size: 12px;
+      margin-left: 5px;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    #projectList button:hover {
+      background: #ddd;
+    }
+
+    .dev-options {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: none;
+      background: #fafafa;
+    }
+
+    .dev-toggle-btn {
+      margin-top: 15px;
+      background: #28a745;
+    }
+
+    .dev-toggle-btn.off {
+      background: #dc3545;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .resolution-inputs {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .resolution-inputs input {
+      width: 80px;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    .resolution-inputs span {
+      font-weight: bold;
+      font-size: 18px;
+      user-select: none;
+    }
+
+    #zoomValue {
+      margin-top: 8px;
+      font-size: 14px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <h2>
+        <img src="/static/logo.png" alt="GeoRenew Logo" />
+        GeoRenew
+      </h2>
+
+      <input type="text" id="projectName" placeholder="Enter project name" />
+      <button onclick="captureMap()">📡 Capture Satellite Image</button>
+
+      <div id="projectHeader">
+        Projects
+        <span id="refreshProjects" title="Refresh Projects">🔄</span>
+      </div>
+      <div id="projectList"></div>
+
+      <div class="preview"><strong>Original Image:</strong><img id="img1" alt="Original"/></div>
+      <div class="preview"><strong>Heatmap:</strong><img id="img2" alt="Heatmap"/></div>
+      <div class="preview"><strong>Mask:</strong><img id="img3" alt="Mask"/></div>
+
+      <button id="toggleDevBtn" class="dev-toggle-btn off">Developer Options: OFF</button>
+      <div class="dev-options" id="devOptions">
+        <label for="thresholdSlider">Threshold: <span id="thresholdValue">128</span></label>
+        <input type="range" id="thresholdSlider" min="0" max="255" value="128" />
+
+        <label>Resolution:</label>
+        <div class="resolution-inputs">
+          <input type="number" id="resWidth" min="1" max="2048" value="512" />
+          <span>×</span>
+          <input type="number" id="resHeight" min="1" max="2048" value="512" />
+        </div>
+
+        <div id="zoomValue">Current Zoom: 14</div>
+      </div>
+    </div>
+
+    <div class="map-container">
+      <div class="map-wrapper">
+        <div id="map"></div>
+      </div>
+      <div class="coord-inputs">
+        <input type="text" id="latitude" placeholder="Latitude" style="width: 140px;" />
+        <input type="text" id="longitude" placeholder="Longitude" style="width: 140px;" />
+        <button onclick="goToCoordinates()" style="width: 100px;">🌍 Go</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script>
+    const apiKey = "{{ api_key }}"; // Flask injects this
+
+    const map = L.map('map').setView([40.4093, 49.8671], 14);
+
+    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=${apiKey}`, {
+      maxZoom: 18,
+      tileSize: 512,
+      zoomOffset: -1
+    }).addTo(map);
+
+    // Update latitude/longitude inputs when map moves
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      document.getElementById('latitude').value = center.lat.toFixed(6);
+      document.getElementById('longitude').value = center.lng.toFixed(6);
+
+      // Update zoom display
+      document.getElementById('zoomValue').textContent = `Current Zoom: ${map.getZoom()}`;
+    });
+
+    function goToCoordinates() {
+      const lat = parseFloat(document.getElementById('latitude').value);
+      const lon = parseFloat(document.getElementById('longitude').value);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        map.setView([lat, lon], map.getZoom());
+      } else {
+        alert("Please enter valid latitude and longitude.");
+      }
+    }
+
+    function captureMap() {
+      const name = document.getElementById('projectName').value.trim();
+      if (!name) return alert("Enter a project name.");
+
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+
+      const width = parseInt(document.getElementById('resWidth').value) || 512;
+      const height = parseInt(document.getElementById('resHeight').value) || 512;
+      const threshold = parseInt(document.getElementById('thresholdSlider').value);
+
+      fetch('/get_image', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `lat=${center.lat}&lon=${center.lng}&name=${encodeURIComponent(name)}&zoom=${zoom}&width=${width}&height=${height}&threshold=${threshold}`
+      })
+      .then(res => res.text())
+      .then(() => {
+        loadImages(name, threshold);
+        loadProjects();
+      });
+    }
+
+    function loadImages(name, threshold = 128) {
+      document.getElementById('img1').src = `/load_project/${name}/image?${Date.now()}`;
+      document.getElementById('img2').src = `/load_project/${name}/heatmap?${Date.now()}`;
+
+      // To update mask dynamically with threshold, add query params
+      document.getElementById('img3').src = `/load_project/${name}/mask?threshold=${threshold}&${Date.now()}`;
+    }
+
+    function loadProjects() {
+      fetch('/get_projects')
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById('projectList');
+          list.innerHTML = '';
+
+          Object.entries(data).forEach(([name, loc]) => {
+            const container = document.createElement('div');
+
+            const link = document.createElement('a');
+            link.textContent = name;
+            link.onclick = () => {
+              map.setView([loc.lat, loc.lon], map.getZoom());
+              document.getElementById('latitude').value = loc.lat.toFixed(6);
+              document.getElementById('longitude').value = loc.lon.toFixed(6);
+              document.getElementById('projectName').value = name;
+              loadImages(name);
+            };
+
+            const renameBtn = document.createElement('button');
+            renameBtn.textContent = '✏️';
+            renameBtn.title = 'Rename';
+            renameBtn.onclick = () => {
+              const newName = prompt("Enter new project name:", name);
+              if (newName && newName !== name) {
+                fetch('/rename_project', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                  body: `old=${encodeURIComponent(name)}&new=${encodeURIComponent(newName)}`
+                }).then(() => loadProjects());
+              }
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.title = 'Delete';
+            deleteBtn.onclick = () => {
+              if (confirm(`Delete project "${name}"?`)) {
+                fetch(`/delete_project/${encodeURIComponent(name)}`, {
+                  method: 'POST'
+                }).then(() => {
+                  loadProjects();
+                  document.getElementById('img1').src = '';
+                  document.getElementById('img2').src = '';
+                  document.getElementById('img3').src = '';
+                });
+              }
+            };
+
+            container.appendChild(link);
+            container.appendChild(renameBtn);
+            container.appendChild(deleteBtn);
+            list.appendChild(container);
+          });
+        });
+    }
+
+    // Developer Options toggle button
+    const toggleBtn = document.getElementById('toggleDevBtn');
+    const devOptions = document.getElementById('devOptions');
+    toggleBtn.onclick = () => {
+      if (devOptions.style.display === 'none' || devOptions.style.display === '') {
+        devOptions.style.display = 'block';
+        toggleBtn.textContent = 'Developer Options: ON';
+        toggleBtn.classList.remove('off');
+      } else {
+        devOptions.style.display = 'none';
+        toggleBtn.textContent = 'Developer Options: OFF';
+        toggleBtn.classList.add('off');
+      }
+    };
+
+    // Threshold slider updates mask preview in real-time
+    const thresholdSlider = document.getElementById('thresholdSlider');
+    const thresholdValue = document.getElementById('thresholdValue');
+
+    thresholdSlider.oninput = () => {
+      thresholdValue.textContent = thresholdSlider.value;
+      const projectName = document.getElementById('projectName').value.trim();
+      if (projectName) {
+        // Reload mask image with new threshold param
+        document.getElementById('img3').src = `/load_project/${projectName}/mask?threshold=${thresholdSlider.value}&${Date.now()}`;
+      }
+    };
+
+    // Refresh projects button
+    document.getElementById('refreshProjects').onclick = loadProjects;
+
+    // On page load
+    window.onload = () => {
+      // Initialize lat/lon inputs with map center
+      const center = map.getCenter();
+      document.getElementById('latitude').value = center.lat.toFixed(6);
+      document.getElementById('longitude').value = center.lng.toFixed(6);
+      document.getElementById('zoomValue').textContent = `Current Zoom: ${map.getZoom()}`;
+      loadProjects();
+    };
+  </script>
+</body>
+</html>
